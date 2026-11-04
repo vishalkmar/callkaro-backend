@@ -212,6 +212,13 @@ describe('production boot checks (P26.T03, T16)', () => {
     expect(r.msg).toMatch(/OTP_DEV_LOG/);
     expect(r.msg).toMatch(/PUBLIC_BASE_URL/);
   });
+  test('demo login is allowed in production (store review), but must be complete', () => {
+    expect(boot({ DEMO_LOGIN_EMAIL: 'demo@callkaro.app', DEMO_LOGIN_OTP: '246810' })).toMatchObject({ exited: false });
+    expect(boot({ DEMO_LOGIN_EMAIL: 'demo@callkaro.app', DEMO_LOGIN_OTP: '12' })).toMatchObject({
+      exited: true,
+      msg: expect.stringMatching(/DEMO_LOGIN_OTP/),
+    });
+  });
   test('NEW: http PUBLIC_BASE_URL refused in production', () => {
     expect(boot({ PUBLIC_BASE_URL: 'http://api.callkaro.in' })).toMatchObject({
       exited: true,
@@ -260,5 +267,40 @@ describe('dev OTP console mode (testing without Brevo)', () => {
     const send = jest.spyOn(axios, 'post').mockResolvedValue({ data: {} });
     await request(app).post('/auth/send-otp').send({ email: 'mail@example.com' });
     expect(send).toHaveBeenCalledWith('https://api.brevo.com/v3/smtp/email', expect.any(Object), expect.any(Object));
+  });
+});
+
+describe('demo login (one fixed test account, everyone else on Brevo)', () => {
+  const axios = require('axios');
+  beforeEach(() => {
+    env.DEMO_LOGIN_EMAIL = 'demo@callkaro.app';
+    env.DEMO_LOGIN_OTP = '246810';
+  });
+  afterEach(() => {
+    env.DEMO_LOGIN_EMAIL = '';
+    env.DEMO_LOGIN_OTP = '';
+    jest.restoreAllMocks();
+  });
+  test('demo email: no email sent, fixed code logs in, code never in the response', async () => {
+    const send = jest.spyOn(axios, 'post').mockResolvedValue({ data: {} });
+    const r = await request(app).post('/auth/send-otp').send({ email: 'Demo@CallKaro.app' });
+    expect(r.status).toBe(200);
+    expect(send).not.toHaveBeenCalled();
+    expect(JSON.stringify(r.body)).not.toContain('246810');
+    const v = await request(app).post('/auth/verify-otp').send({ email: 'demo@callkaro.app', otp: '246810', deviceId: 'demo-device-1' });
+    expect(v.status).toBe(200);
+  });
+  test('demo email: a wrong code is still rejected', async () => {
+    jest.spyOn(axios, 'post').mockResolvedValue({ data: {} });
+    await request(app).post('/auth/send-otp').send({ email: 'demo@callkaro.app' });
+    const v = await request(app).post('/auth/verify-otp').send({ email: 'demo@callkaro.app', otp: '111111', deviceId: 'demo-device-2' });
+    expect(v.body.code).toBe('OTP_INVALID');
+  });
+  test('any other email still goes by Brevo and does NOT accept the demo code', async () => {
+    const send = jest.spyOn(axios, 'post').mockResolvedValue({ data: {} });
+    await request(app).post('/auth/send-otp').send({ email: 'ravi@example.com' });
+    expect(send).toHaveBeenCalledWith('https://api.brevo.com/v3/smtp/email', expect.any(Object), expect.any(Object));
+    const v = await request(app).post('/auth/verify-otp').send({ email: 'ravi@example.com', otp: '246810', deviceId: 'demo-device-3' });
+    expect(v.status).not.toBe(200);
   });
 });

@@ -42,12 +42,15 @@ const sendOtp = async rawEmail => {
     throw errors.tooMany('OTP_HOURLY_LIMIT', 'Too many codes requested. Try again in an hour.');
   }
 
-  const code = generateOtp();
+  const demo = Boolean(env.DEMO_LOGIN_EMAIL && env.DEMO_LOGIN_OTP && email === env.DEMO_LOGIN_EMAIL);
+  const code = demo ? env.DEMO_LOGIN_OTP : generateOtp();
   const otpHash = await bcrypt.hash(code, 10);
   const expiresAt = new Date(now.getTime() + env.OTP_TTL_MINUTES * 60000);
 
   // Send first: if Brevo fails, the previous state (and cooldown) is untouched.
-  if (env.OTP_DEV_LOG) {
+  if (demo) {
+    // Fixed code for the test account: nothing to send.
+  } else if (env.OTP_DEV_LOG) {
     // Testing without Brevo: shown only in the developer's server console, never in pino logs / responses.
     // eslint-disable-next-line no-console
     console.log(`

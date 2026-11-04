@@ -81,6 +81,16 @@ const validate = () => {
       problems.push('PUBLIC_BASE_URL must be the https:// address of this API (e.g. https://your-app.onrender.com)');
     }
   }
+  const demoEmail = (process.env.DEMO_LOGIN_EMAIL || '').trim();
+  const demoOtp = (process.env.DEMO_LOGIN_OTP || '').trim();
+  if (demoEmail || demoOtp) {
+    if (!demoEmail.includes('@')) {
+      problems.push('DEMO_LOGIN_EMAIL must be an email when DEMO_LOGIN_OTP is set (or remove both)');
+    }
+    if (!/^\d{6}$/.test(demoOtp)) {
+      problems.push('DEMO_LOGIN_OTP must be exactly 6 digits when DEMO_LOGIN_EMAIL is set (or remove both)');
+    }
+  }
   if (problems.length) {
     return fail(
       `\n[env] Cannot start - fix these environment variables:\n  - ${problems.join('\n  - ')}\n` +
@@ -112,6 +122,10 @@ const env = {
   // DEV / TESTING ONLY: print the OTP in the server console instead of emailing it (Brevo not set up yet).
   // Production refuses to start with this on (see validate()).
   OTP_DEV_LOG: process.env.OTP_DEV_LOG === 'true' && NODE_ENV !== 'production',
+  // Test / store-review account: this ONE email always gets DEMO_LOGIN_OTP and no email is sent.
+  // Every other email still goes through Brevo. Remove both to turn it off.
+  DEMO_LOGIN_EMAIL: (process.env.DEMO_LOGIN_EMAIL || '').trim().toLowerCase(),
+  DEMO_LOGIN_OTP: (process.env.DEMO_LOGIN_OTP || '').trim(),
   OTP_RESEND_SECONDS: int('OTP_RESEND_SECONDS', 60),
   OTP_MAX_SENDS_PER_HOUR: int('OTP_MAX_SENDS_PER_HOUR', 5),
   OTP_MAX_ATTEMPTS: int('OTP_MAX_ATTEMPTS', 5),
