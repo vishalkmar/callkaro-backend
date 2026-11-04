@@ -1,5 +1,6 @@
 const { AppError } = require('../utils/response');
 const logger = require('../utils/logger');
+const { reportServerError } = require('../utils/crash');
 
 const notFound = (req, res) => res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'Route not found' });
 
@@ -23,6 +24,7 @@ const errorHandler = (err, req, res, next) => {
     return res.status(409).json({ success: false, code: 'CONFLICT', message: 'This was already done' });
   }
   (req.log || logger).error({ err: err?.message, stack: err?.stack }, 'unhandled error');
+  reportServerError(err, req);
   return res.status(500).json({ success: false, code: 'SERVER_ERROR', message: 'Something went wrong, try again' });
 };
 

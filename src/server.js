@@ -30,7 +30,7 @@ const start = async () => {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 };
 
-process.on('unhandledRejection', err => logger.error({ err: err?.message }, 'unhandledRejection'));
+require('./utils/crash').installCrashHandlers();
 
 start().catch(err => {
   logger.error({ err: err.message }, 'failed to start');
