@@ -150,6 +150,7 @@ describe('production boot checks (P26.T03, T16)', () => {
     JWT_REFRESH_SECRET: LONG,
     PUBLIC_BASE_URL: 'https://api.callkaro.in',
     SKIP_WEBHOOK_SIGNATURE: 'false',
+    RENDER_EXTERNAL_URL: '',
     TWILIO_AUTH_TOKEN: 't',
     ...over,
   });
@@ -198,6 +199,18 @@ describe('production boot checks (P26.T03, T16)', () => {
       exited: true,
       msg: expect.stringMatching(/TWILIO_API_KEY_SID/),
     });
+  });
+  test('Render: a copied http PUBLIC_BASE_URL falls back to RENDER_EXTERNAL_URL', () => {
+    expect(
+      boot({ PUBLIC_BASE_URL: 'http://localhost:5000', RENDER_EXTERNAL_URL: 'https://callkaro-backend.onrender.com' }),
+    ).toMatchObject({ exited: false });
+  });
+  test('every problem is listed in ONE message (no deploy-by-deploy guessing)', () => {
+    const r = boot({ JWT_ACCESS_SECRET: 'short', OTP_DEV_LOG: 'true', PUBLIC_BASE_URL: 'http://x' });
+    expect(r.exited).toBe(true);
+    expect(r.msg).toMatch(/JWT_ACCESS_SECRET/);
+    expect(r.msg).toMatch(/OTP_DEV_LOG/);
+    expect(r.msg).toMatch(/PUBLIC_BASE_URL/);
   });
   test('NEW: http PUBLIC_BASE_URL refused in production', () => {
     expect(boot({ PUBLIC_BASE_URL: 'http://api.callkaro.in' })).toMatchObject({

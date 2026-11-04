@@ -11,7 +11,6 @@ const REQUIRED_ALWAYS = [
   'ADMIN_API_KEY',
 ];
 
-const REQUIRED_IN_PRODUCTION = ['PUBLIC_BASE_URL'];
 
 // Telephony is optional until you have a provider: with NO Twilio key the API runs and calls answer
 // "Calling is not configured yet". Once ANY Twilio key is set, all of them must be set (no half setup).
@@ -42,34 +41,51 @@ const fail = msg => {
   process.exit(1);
 };
 
-/** Checks the environment at boot. Reads NODE_ENV at call time (testable). */
+/**
+ * Public https URL of this API (provider webhooks, recording links). On Render, RENDER_EXTERNAL_URL is the
+ * service's real https address, used when PUBLIC_BASE_URL is missing or not https (e.g. a copied local value).
+ */
+const publicBaseUrl = () => {
+  const own = (process.env.PUBLIC_BASE_URL || '').trim();
+  const render = (process.env.RENDER_EXTERNAL_URL || '').trim();
+  if (/^https:\/\//.test(own)) {
+    return own;
+  }
+  if (/^https:\/\//.test(render)) {
+    return render;
+  }
+  return own || 'http://localhost:5000';
+};
+
+/** Checks the environment at boot and lists EVERY problem at once. Reads NODE_ENV at call time (testable). */
 const validate = () => {
   const prod = (process.env.NODE_ENV || 'development') === 'production';
   const twilioStarted = TWILIO_KEYS.some(k => process.env[k]);
   const required = prod
-    ? [...REQUIRED_ALWAYS, ...REQUIRED_IN_PRODUCTION, ...(twilioStarted ? TWILIO_KEYS : [])]
+    ? [...REQUIRED_ALWAYS, ...(twilioStarted ? TWILIO_KEYS : [])]
     : REQUIRED_ALWAYS;
-  const missing = required.filter(k => !process.env[k]);
-  if (missing.length) {
-    return fail(
-      `\n[env] Missing required environment variables:\n  - ${missing.join('\n  - ')}\nCopy server/.env.example to server/.env and fill them in.\n`,
-    );
-  }
+  const problems = required.filter(k => !process.env[k]).map(k => `${k} is missing`);
   if (prod) {
     for (const k of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET']) {
-      if (process.env[k].length < 64) {
-        return fail(`[env] ${k} must be at least 64 characters in production.`);
+      if (process.env[k] && process.env[k].length < 64) {
+        problems.push(`${k} must be at least 64 characters in production (now ${process.env[k].length})`);
       }
     }
     if (process.env.OTP_DEV_LOG === 'true') {
-      return fail('[env] OTP_DEV_LOG must never be enabled in production - OTPs must go by email (Brevo).');
+      problems.push('OTP_DEV_LOG must never be enabled in production - remove it or set false (OTPs go by Brevo email)');
     }
     if (process.env.SKIP_WEBHOOK_SIGNATURE === 'true') {
-      return fail('[env] SKIP_WEBHOOK_SIGNATURE must never be enabled in production.');
+      problems.push('SKIP_WEBHOOK_SIGNATURE must never be enabled in production - remove it');
     }
-    if (!/^https:\/\//.test(process.env.PUBLIC_BASE_URL || '')) {
-      return fail('[env] PUBLIC_BASE_URL must be https:// in production (provider webhooks).');
+    if (!/^https:\/\//.test(publicBaseUrl())) {
+      problems.push('PUBLIC_BASE_URL must be the https:// address of this API (e.g. https://your-app.onrender.com)');
     }
+  }
+  if (problems.length) {
+    return fail(
+      `\n[env] Cannot start - fix these environment variables:\n  - ${problems.join('\n  - ')}\n` +
+        '(Local: server/.env, Render: Dashboard > Environment)\n',
+    );
   }
   return true;
 };
@@ -79,7 +95,7 @@ const env = {
   isProd: NODE_ENV === 'production',
   isTest: NODE_ENV === 'test',
   PORT: int('PORT', 5000),
-  PUBLIC_BASE_URL: (process.env.PUBLIC_BASE_URL || 'http://localhost:5000').replace(/\/$/, ''),
+  PUBLIC_BASE_URL: publicBaseUrl().replace(/\/$/, ''),
   DATABASE_URL: process.env.DATABASE_URL, // Neon: postgresql://user:pass@ep-xxx.region.aws.neon.tech/callkaro?sslmode=require
   CORS_ORIGINS: list('CORS_ORIGINS'),
   TRUST_PROXY: int('TRUST_PROXY', 1),
