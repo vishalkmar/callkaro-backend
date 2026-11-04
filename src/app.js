@@ -58,7 +58,8 @@ app.get('/health', async (req, res) => {
   const db = await ping();
   res.status(db ? 200 : 503).json({
     success: db,
-    data: { ok: db, db: db ? 'up' : 'down', uptime: Math.round(process.uptime()), version: env.APP_VERSION, env: env.NODE_ENV },
+    data: { ok: db, db: db ? 'up' : 'down', uptime: Math.round(process.uptime()), version: env.APP_VERSION, env: env.NODE_ENV,
+      commit: env.GIT_COMMIT, demoLogin: Boolean(env.DEMO_LOGIN_EMAIL && env.DEMO_LOGIN_OTP) },
   });
 });
 

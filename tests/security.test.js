@@ -219,6 +219,9 @@ describe('production boot checks (P26.T03, T16)', () => {
       msg: expect.stringMatching(/DEMO_LOGIN_OTP/),
     });
   });
+  test('demo values pasted with quotes / spaces on the dashboard still work', () => {
+    expect(boot({ DEMO_LOGIN_EMAIL: ' "demo@callkaro.app" ', DEMO_LOGIN_OTP: "'246810'" })).toMatchObject({ exited: false });
+  });
   test('NEW: http PUBLIC_BASE_URL refused in production', () => {
     expect(boot({ PUBLIC_BASE_URL: 'http://api.callkaro.in' })).toMatchObject({
       exited: true,

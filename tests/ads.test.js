@@ -63,7 +63,7 @@ describe('rewarded ads SSV', () => {
     const { user, token } = await createUser();
     for (let i = 0; i < 20; i++) {
       await query(
-        "INSERT INTO ad_rewards (user_id, transaction_id, purpose, credits, created_at) VALUES ($1, $2, 'credits', 250, now() - interval '1 hour')",
+        "INSERT INTO ad_rewards (user_id, transaction_id, purpose, credits, created_at) VALUES ($1, $2, 'credits', 250, now())", // 'today' even just after IST midnight
         [user.id, `old-${i}`],
       );
     }

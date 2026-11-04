@@ -15,6 +15,7 @@ describe('Phase 6 - backend bootstrap', () => {
     expect(r.body).toMatchObject({ success: true, data: { ok: true, db: 'up' } });
     expect(typeof r.body.data.uptime).toBe('number');
     expect(r.body.data.version).toBeTruthy();
+    expect(r.body.data.demoLogin).toBe(false); // on/off only: the demo email and code are never shown
   });
 
   test('unknown route -> standard error envelope (P06.T10)', async () => {

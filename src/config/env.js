@@ -35,6 +35,9 @@ const list = key =>
 
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+// Dashboard values are often pasted with quotes or spaces ("demo@x.com"): strip both.
+const clean = key => (process.env[key] || '').trim().replace(/^["']|["']$/g, '').trim();
+
 const fail = msg => {
   // eslint-disable-next-line no-console
   console.error(msg);
@@ -81,8 +84,8 @@ const validate = () => {
       problems.push('PUBLIC_BASE_URL must be the https:// address of this API (e.g. https://your-app.onrender.com)');
     }
   }
-  const demoEmail = (process.env.DEMO_LOGIN_EMAIL || '').trim();
-  const demoOtp = (process.env.DEMO_LOGIN_OTP || '').trim();
+  const demoEmail = clean('DEMO_LOGIN_EMAIL');
+  const demoOtp = clean('DEMO_LOGIN_OTP');
   if (demoEmail || demoOtp) {
     if (!demoEmail.includes('@')) {
       problems.push('DEMO_LOGIN_EMAIL must be an email when DEMO_LOGIN_OTP is set (or remove both)');
@@ -124,8 +127,8 @@ const env = {
   OTP_DEV_LOG: process.env.OTP_DEV_LOG === 'true' && NODE_ENV !== 'production',
   // Test / store-review account: this ONE email always gets DEMO_LOGIN_OTP and no email is sent.
   // Every other email still goes through Brevo. Remove both to turn it off.
-  DEMO_LOGIN_EMAIL: (process.env.DEMO_LOGIN_EMAIL || '').trim().toLowerCase(),
-  DEMO_LOGIN_OTP: (process.env.DEMO_LOGIN_OTP || '').trim(),
+  DEMO_LOGIN_EMAIL: clean('DEMO_LOGIN_EMAIL').toLowerCase(),
+  DEMO_LOGIN_OTP: clean('DEMO_LOGIN_OTP'),
   OTP_RESEND_SECONDS: int('OTP_RESEND_SECONDS', 60),
   OTP_MAX_SENDS_PER_HOUR: int('OTP_MAX_SENDS_PER_HOUR', 5),
   OTP_MAX_ATTEMPTS: int('OTP_MAX_ATTEMPTS', 5),
@@ -164,6 +167,7 @@ const env = {
   PROVIDER_COST_PAISE_PER_MIN: int('PROVIDER_COST_PAISE_PER_MIN', 120),
   ACCOUNTS_PER_DEVICE: int('ACCOUNTS_PER_DEVICE', 2),
   APP_VERSION: process.env.npm_package_version || '1.0.0',
+  GIT_COMMIT: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || undefined, // which deploy is running
 };
 
 module.exports = { env, validate };
