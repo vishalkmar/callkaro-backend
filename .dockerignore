@@ -1,0 +1,9 @@
+node_modules
+.env
+.env.*
+!.env.example
+coverage
+.jest-cache
+tests
+*.log
+.git

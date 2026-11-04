@@ -3,6 +3,17 @@ const pino = require('pino');
 const isTest = process.env.NODE_ENV === 'test';
 const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
 
+// pino-pretty is a devDependency: hosts that install only production deps (Render, Docker
+// `npm ci --omit=dev`) do not have it. Use it only when it is really installed, else plain JSON logs.
+const hasPretty = (() => {
+  try {
+    require.resolve('pino-pretty');
+    return true;
+  } catch (e) {
+    return false;
+  }
+})();
+
 // Never log OTPs, tokens or payment secrets - these paths are always redacted.
 const REDACT_PATHS = [
   'req.headers.authorization',
@@ -28,12 +39,13 @@ const REDACT_PATHS = [
 const logger = pino({
   level: process.env.LOG_LEVEL || (isTest ? 'silent' : 'info'),
   redact: { paths: REDACT_PATHS, censor: '[redacted]' },
-  transport: isDev
-    ? {
-        target: 'pino-pretty',
-        options: { colorize: true, translateTime: 'HH:MM:ss' },
-      }
-    : undefined,
+  transport:
+    isDev && hasPretty
+      ? {
+          target: 'pino-pretty',
+          options: { colorize: true, translateTime: 'HH:MM:ss' },
+        }
+      : undefined,
 });
 
 module.exports = logger;
