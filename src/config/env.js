@@ -1,0 +1,139 @@
+// Loads .env and validates required variables at boot. Exits with a clear message if something is missing.
+const path = require('path');
+require('dotenv').config({ path: process.env.DOTENV_PATH || path.join(__dirname, '..', '..', '.env'), quiet: true });
+
+const REQUIRED_ALWAYS = [
+  'DATABASE_URL',
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+  'BREVO_API_KEY',
+  'BREVO_SENDER_EMAIL',
+  'ADMIN_API_KEY',
+];
+
+const REQUIRED_IN_PRODUCTION = ['PUBLIC_BASE_URL'];
+
+// Telephony is optional until you have a provider: with NO Twilio key the API runs and calls answer
+// "Calling is not configured yet". Once ANY Twilio key is set, all of them must be set (no half setup).
+const TWILIO_KEYS = [
+  'TWILIO_ACCOUNT_SID',
+  'TWILIO_API_KEY_SID',
+  'TWILIO_API_KEY_SECRET',
+  'TWILIO_AUTH_TOKEN',
+  'TWILIO_TWIML_APP_SID',
+  'CALLER_ID_POOL',
+];
+
+const int = (key, def) => {
+  const v = parseInt(process.env[key], 10);
+  return Number.isFinite(v) ? v : def;
+};
+const list = key =>
+  (process.env[key] || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+const fail = msg => {
+  // eslint-disable-next-line no-console
+  console.error(msg);
+  process.exit(1);
+};
+
+/** Checks the environment at boot. Reads NODE_ENV at call time (testable). */
+const validate = () => {
+  const prod = (process.env.NODE_ENV || 'development') === 'production';
+  const twilioStarted = TWILIO_KEYS.some(k => process.env[k]);
+  const required = prod
+    ? [...REQUIRED_ALWAYS, ...REQUIRED_IN_PRODUCTION, ...(twilioStarted ? TWILIO_KEYS : [])]
+    : REQUIRED_ALWAYS;
+  const missing = required.filter(k => !process.env[k]);
+  if (missing.length) {
+    return fail(
+      `\n[env] Missing required environment variables:\n  - ${missing.join('\n  - ')}\nCopy server/.env.example to server/.env and fill them in.\n`,
+    );
+  }
+  if (prod) {
+    for (const k of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET']) {
+      if (process.env[k].length < 64) {
+        return fail(`[env] ${k} must be at least 64 characters in production.`);
+      }
+    }
+    if (process.env.OTP_DEV_LOG === 'true') {
+      return fail('[env] OTP_DEV_LOG must never be enabled in production - OTPs must go by email (Brevo).');
+    }
+    if (process.env.SKIP_WEBHOOK_SIGNATURE === 'true') {
+      return fail('[env] SKIP_WEBHOOK_SIGNATURE must never be enabled in production.');
+    }
+    if (!/^https:\/\//.test(process.env.PUBLIC_BASE_URL || '')) {
+      return fail('[env] PUBLIC_BASE_URL must be https:// in production (provider webhooks).');
+    }
+  }
+  return true;
+};
+
+const env = {
+  NODE_ENV,
+  isProd: NODE_ENV === 'production',
+  isTest: NODE_ENV === 'test',
+  PORT: int('PORT', 5000),
+  PUBLIC_BASE_URL: (process.env.PUBLIC_BASE_URL || 'http://localhost:5000').replace(/\/$/, ''),
+  DATABASE_URL: process.env.DATABASE_URL, // Neon: postgresql://user:pass@ep-xxx.region.aws.neon.tech/callkaro?sslmode=require
+  CORS_ORIGINS: list('CORS_ORIGINS'),
+  TRUST_PROXY: int('TRUST_PROXY', 1),
+
+  JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,
+  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
+  JWT_ACCESS_TTL: process.env.JWT_ACCESS_TTL || '30m',
+  JWT_REFRESH_TTL: process.env.JWT_REFRESH_TTL || '30d',
+
+  BREVO_API_KEY: process.env.BREVO_API_KEY,
+  BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL,
+  BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME || 'CallKaro',
+  OTP_TTL_MINUTES: int('OTP_TTL_MINUTES', 5),
+  // DEV / TESTING ONLY: print the OTP in the server console instead of emailing it (Brevo not set up yet).
+  // Production refuses to start with this on (see validate()).
+  OTP_DEV_LOG: process.env.OTP_DEV_LOG === 'true' && NODE_ENV !== 'production',
+  OTP_RESEND_SECONDS: int('OTP_RESEND_SECONDS', 60),
+  OTP_MAX_SENDS_PER_HOUR: int('OTP_MAX_SENDS_PER_HOUR', 5),
+  OTP_MAX_ATTEMPTS: int('OTP_MAX_ATTEMPTS', 5),
+  OTP_LOCK_MINUTES: int('OTP_LOCK_MINUTES', 15),
+
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+  TWILIO_API_KEY_SID: process.env.TWILIO_API_KEY_SID,
+  TWILIO_API_KEY_SECRET: process.env.TWILIO_API_KEY_SECRET,
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+  TWILIO_TWIML_APP_SID: process.env.TWILIO_TWIML_APP_SID,
+  TWILIO_PUSH_CREDENTIAL_SID: process.env.TWILIO_PUSH_CREDENTIAL_SID,
+  CALLER_ID_POOL: list('CALLER_ID_POOL'),
+  SKIP_WEBHOOK_SIGNATURE: process.env.SKIP_WEBHOOK_SIGNATURE === 'true' && NODE_ENV !== 'production',
+  REPORT_URL: process.env.REPORT_URL || 'yourapp.in/report',
+  RECORDING_RETENTION_DAYS: int('RECORDING_RETENTION_DAYS', 7),
+  CALL_METADATA_RETENTION_DAYS: int('CALL_METADATA_RETENTION_DAYS', 365),
+
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
+  RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET,
+  GOOGLE_PLAY_PACKAGE_NAME: process.env.GOOGLE_PLAY_PACKAGE_NAME || 'com.callkaro.app',
+  GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
+  PLAY_RTDN_TOKEN: process.env.PLAY_RTDN_TOKEN,
+  PAYMENT_PROVIDER: process.env.PAYMENT_PROVIDER || 'play',
+
+  // Numeric ad unit ids (the part after '/') of our rewarded units, comma separated. Empty = accept any.
+  ADMOB_REWARDED_AD_UNITS: (process.env.ADMOB_REWARDED_AD_UNITS || '')
+    .split(',')
+    .map(s => s.trim().split('/').pop())
+    .filter(Boolean),
+  ADMOB_SSV_KEYS_URL: process.env.ADMOB_SSV_KEYS_URL || 'https://www.gstatic.com/admob/reward/verifier-keys.json',
+  ADMIN_API_KEY: process.env.ADMIN_API_KEY,
+  ADMIN_IP_ALLOWLIST: list('ADMIN_IP_ALLOWLIST'),
+  ALERT_WEBHOOK_URL: process.env.ALERT_WEBHOOK_URL,
+  DAILY_TELEPHONY_SPEND_ALERT_INR: int('DAILY_TELEPHONY_SPEND_ALERT_INR', 2000),
+  PROVIDER_COST_PAISE_PER_MIN: int('PROVIDER_COST_PAISE_PER_MIN', 120),
+  ACCOUNTS_PER_DEVICE: int('ACCOUNTS_PER_DEVICE', 2),
+  APP_VERSION: process.env.npm_package_version || '1.0.0',
+};
+
+module.exports = { env, validate };

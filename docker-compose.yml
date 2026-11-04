@@ -1,0 +1,20 @@
+# Local PostgreSQL 16 (same major version as Neon). Port 5434 to avoid clashing with other local databases.
+# docker compose up -d   ->   DATABASE_URL=postgresql://callkaro:callkaro@localhost:5434/callkaro
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: callkaro-pg
+    environment:
+      POSTGRES_USER: callkaro
+      POSTGRES_PASSWORD: callkaro
+      POSTGRES_DB: callkaro
+    ports:
+      - '5434:5432'
+    volumes:
+      - callkaro-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U callkaro']
+      interval: 5s
+      retries: 20
+volumes:
+  callkaro-pg:
