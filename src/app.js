@@ -65,6 +65,7 @@ app.get('/health', async (req, res) => {
 
 app.use(globalLimiter);
 
+app.use('/legal', require('./routes/legal.routes')); // public, no login
 app.use('/auth', require('./routes/auth.routes'));
 app.use('/me', require('./routes/me.routes'));
 app.use('/wallet', require('./routes/wallet.routes'));
