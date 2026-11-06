@@ -219,6 +219,12 @@ describe('production boot checks (P26.T03, T16)', () => {
       msg: expect.stringMatching(/DEMO_LOGIN_OTP/),
     });
   });
+  test('placeholder caller IDs (+91XXXXXXXXXX from .env.example) stop the server', () => {
+    const r = boot({ CALLER_ID_POOL: '+91XXXXXXXXXX,+91YYYYYYYYYY' });
+    expect(r.exited).toBe(true);
+    expect(r.msg).toMatch(/CALLER_ID_POOL must be real E\.164/);
+    expect(boot({ CALLER_ID_POOL: '+19105419187' })).toMatchObject({ exited: false });
+  });
   test('demo values pasted with quotes / spaces on the dashboard still work', () => {
     expect(boot({ DEMO_LOGIN_EMAIL: ' "demo@callkaro.app" ', DEMO_LOGIN_OTP: "'246810'" })).toMatchObject({ exited: false });
   });

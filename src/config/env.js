@@ -84,6 +84,10 @@ const validate = () => {
       problems.push('PUBLIC_BASE_URL must be the https:// address of this API (e.g. https://your-app.onrender.com)');
     }
   }
+  const badCallerIds = list('CALLER_ID_POOL').filter(n => !/^\+[1-9]\d{7,14}$/.test(n));
+  if (badCallerIds.length) {
+    problems.push(`CALLER_ID_POOL must be real E.164 numbers like +19105551234 (bad: ${badCallerIds.join(', ')})`);
+  }
   const demoEmail = clean('DEMO_LOGIN_EMAIL');
   const demoOtp = clean('DEMO_LOGIN_OTP');
   if (demoEmail || demoOtp) {

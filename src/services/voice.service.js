@@ -37,11 +37,18 @@ const getCall = callSid => queryOne('SELECT * FROM calls WHERE call_sid = $1', [
 
 // ---------------- caller ID pool (owned / verified numbers ONLY) ----------------
 
-/** Syncs CALLER_ID_POOL from .env into caller_numbers at boot. */
+/**
+ * Syncs CALLER_ID_POOL into caller_numbers at boot. The env list is the truth: numbers removed from it (e.g. an
+ * old placeholder) are switched off, otherwise the provider rejects them as caller ID (Twilio 13214) and calls die.
+ */
 const syncCallerPool = async () => {
   for (const e164 of env.CALLER_ID_POOL) {
-    await query("INSERT INTO caller_numbers (e164, provider, active) VALUES ($1, 'twilio', TRUE) ON CONFLICT (e164) DO NOTHING", [e164]);
+    await query(
+      "INSERT INTO caller_numbers (e164, provider, active) VALUES ($1, 'twilio', TRUE) ON CONFLICT (e164) DO UPDATE SET active = TRUE",
+      [e164],
+    );
   }
+  await query('UPDATE caller_numbers SET active = FALSE WHERE active = TRUE AND NOT (e164 = ANY($1::text[]))', [env.CALLER_ID_POOL]);
 };
 
 /** Least-recently-used active pool number. Never a random / user-supplied / spoofed number. */

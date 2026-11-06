@@ -94,6 +94,29 @@ describe('caller ID + TwiML (P20.T03, T10-T11)', () => {
     expect(ra.text).toMatch(/action="https:\/\/api.test.local\/voice\/dial-complete"/);
   });
 
+  test('BUG FIX: a number removed from CALLER_ID_POOL (old placeholder) is never used again (Twilio 13214)', async () => {
+    env.CALLER_ID_POOL.splice(0, env.CALLER_ID_POOL.length, '+911140000009');
+    await voice.syncCallerPool(); // e.g. a first deploy with the wrong / example number
+    env.CALLER_ID_POOL.splice(0, env.CALLER_ID_POOL.length, '+19105550100');
+    await voice.syncCallerPool(); // env fixed, server restarted
+    for (let i = 0; i < 3; i++) {
+      const { user } = await createUser({ credits: 5000 });
+      const r = await outbound(user.id, 20 + i);
+      expect(/callerId="([^"]+)"/.exec(r.text)[1]).toBe('+19105550100');
+    }
+    const old = await queryOne("SELECT active FROM caller_numbers WHERE e164 = '+911140000009'");
+    expect(old.active).toBe(false);
+  });
+
+  test('a number put back into CALLER_ID_POOL is switched on again', async () => {
+    env.CALLER_ID_POOL.splice(0, env.CALLER_ID_POOL.length, '+19105550100');
+    await voice.syncCallerPool();
+    env.CALLER_ID_POOL.splice(0, env.CALLER_ID_POOL.length, '+911140000009');
+    await voice.syncCallerPool();
+    expect((await queryOne("SELECT active FROM caller_numbers WHERE e164 = '+911140000009'")).active).toBe(true);
+    expect((await queryOne("SELECT active FROM caller_numbers WHERE e164 = '+19105550100'")).active).toBe(false);
+  });
+
   test('a To number the user typed can never become TwiML/XML', async () => {
     const { user } = await createUser({ credits: 5000 });
     const r = await outbound(user.id, 12, '98765"/><Dial><Number>+911</Number>');
