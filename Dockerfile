@@ -1,4 +1,4 @@
-# Production image for the CallKaro API.  docker build -t callkaro-api . && docker run --env-file .env -p 5000:5000 callkaro-api
+# Production image for the CallingKaro API.  docker build -t callkaro-api . && docker run --env-file .env -p 5000:5000 callkaro-api
 FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /app

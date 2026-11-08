@@ -33,7 +33,7 @@ const checkCallAllowed = async (userId, to) => {
     return base;
   }
   if (await isNumberBlocked(to)) {
-    return { ok: false, code: 'NUMBER_BLOCKED', message: 'This number cannot be called from CallKaro' };
+    return { ok: false, code: 'NUMBER_BLOCKED', message: 'This number cannot be called from CallingKaro' };
   }
   const r = await queryOne(
     `SELECT COUNT(*) FILTER (WHERE to_number = $2 AND started_at >= now() - interval '1 hour')::int AS same_hour,

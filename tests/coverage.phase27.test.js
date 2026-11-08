@@ -48,7 +48,7 @@ describe('alert service', () => {
     await alerts.notify('Spend high', { dedupeKey: 'spend' });
     await alerts.notify('Spend high again', { dedupeKey: 'spend' });
     expect(postSpy).toHaveBeenCalledTimes(1);
-    expect(postSpy.mock.calls[0][1].text).toBe('[CallKaro] Spend high');
+    expect(postSpy.mock.calls[0][1].text).toBe('[CallingKaro] Spend high');
     postSpy.mockRejectedValueOnce(new Error('down'));
     await expect(alerts.notify('other', { dedupeKey: 'x' })).resolves.toBeUndefined();
   });

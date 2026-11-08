@@ -30,7 +30,7 @@ const notify = async (text, { dedupeKey, minIntervalMs = 10 * 60 * 1000 } = {}) 
     }
   }
   try {
-    await axios.post(env.ALERT_WEBHOOK_URL, { text: `[CallKaro] ${text}`, content: `[CallKaro] ${text}` }, { timeout: 5000 });
+    await axios.post(env.ALERT_WEBHOOK_URL, { text: `[CallingKaro] ${text}`, content: `[CallingKaro] ${text}` }, { timeout: 5000 });
   } catch (e) {
     logger.error({ err: e.message }, 'alert webhook failed');
   }

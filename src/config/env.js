@@ -139,7 +139,7 @@ const env = {
 
   BREVO_API_KEY: process.env.BREVO_API_KEY,
   BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL,
-  BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME || 'CallKaro',
+  BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME || 'CallingKaro',
   OTP_TTL_MINUTES: int('OTP_TTL_MINUTES', 5),
   // DEV / TESTING ONLY: print the OTP in the server console instead of emailing it (Brevo not set up yet).
   // Production refuses to start with this on (see validate()).
@@ -179,7 +179,7 @@ const env = {
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET,
-  GOOGLE_PLAY_PACKAGE_NAME: process.env.GOOGLE_PLAY_PACKAGE_NAME || 'com.callkaro.app',
+  GOOGLE_PLAY_PACKAGE_NAME: process.env.GOOGLE_PLAY_PACKAGE_NAME || 'com.callingkaro.app',
   GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON,
   PLAY_RTDN_TOKEN: process.env.PLAY_RTDN_TOKEN,
   PAYMENT_PROVIDER: process.env.PAYMENT_PROVIDER || 'play',

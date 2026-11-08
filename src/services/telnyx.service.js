@@ -85,7 +85,7 @@ const createCredential = async userId => {
   const expiresAt = new Date(Date.now() + CREDENTIAL_DAYS * 86400 * 1000);
   const { data } = await api().post('/telephony_credentials', {
     connection_id: env.TELNYX_CONNECTION_ID,
-    name: `callkaro-${userId}`,
+    name: `callingkaro-${userId}`,
     expires_at: expiresAt.toISOString(),
   });
   const cred = data.data;

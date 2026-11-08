@@ -8,8 +8,8 @@ const TERMS_OF_USE = {
   updated: 'Version v1 - October 2026',
   sections: [
     {
-      heading: '1. What CallKaro is',
-      body: 'CallKaro lets you place calls from the app over the internet to mobile and landline numbers in India. Calls are carried by a licensed telecom/CPaaS partner. The person you call receives a normal phone call.',
+      heading: '1. What CallingKaro is',
+      body: 'CallingKaro lets you place calls from the app over the internet to mobile and landline numbers in India. Calls are carried by a licensed telecom/CPaaS partner. The person you call receives a normal phone call.',
     },
     {
       heading: '2. Credits',
@@ -17,11 +17,11 @@ const TERMS_OF_USE = {
     },
     {
       heading: '3. Acceptable use - strictly prohibited',
-      body: 'You must NOT use CallKaro to: harass, threaten, stalk or abuse anyone; make fraudulent, scam, phishing or extortion calls; impersonate any person, company, bank or government body; make spam, robocalls or unsolicited marketing calls; call numbers that have asked not to be called; or break any law. We may suspend accounts, block numbers and share information with law enforcement where required by law.',
+      body: 'You must NOT use CallingKaro to: harass, threaten, stalk or abuse anyone; make fraudulent, scam, phishing or extortion calls; impersonate any person, company, bank or government body; make spam, robocalls or unsolicited marketing calls; call numbers that have asked not to be called; or break any law. We may suspend accounts, block numbers and share information with law enforcement where required by law.',
     },
     {
       heading: '4. Caller ID',
-      body: 'Your calls show a number owned or verified by CallKaro, never a spoofed or random number. People who call that number back hear a message explaining it is used by CallKaro and how to report misuse.',
+      body: 'Your calls show a number owned or verified by CallingKaro, never a spoofed or random number. People who call that number back hear a message explaining it is used by CallingKaro and how to report misuse.',
     },
     {
       heading: '5. Call recording',
@@ -37,7 +37,7 @@ const TERMS_OF_USE = {
     },
     {
       heading: '8. Availability',
-      body: 'Call quality depends on your internet connection and our partners. Emergency numbers (100, 101, 102, 108, 112) and short codes cannot be dialled from CallKaro - always use your phone dialer for emergencies.',
+      body: 'Call quality depends on your internet connection and our partners. Emergency numbers (100, 101, 102, 108, 112) and short codes cannot be dialled from CallingKaro - always use your phone dialer for emergencies.',
     },
     {
       heading: '9. Account',

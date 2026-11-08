@@ -12,7 +12,7 @@ const start = async () => {
   await connectDB(env.DATABASE_URL);
   await syncCallerPool();
   const server = app.listen(env.PORT, '0.0.0.0', () => {
-    logger.info(`CallKaro API listening on http://0.0.0.0:${env.PORT} (${env.NODE_ENV})`);
+    logger.info(`CallingKaro API listening on http://0.0.0.0:${env.PORT} (${env.NODE_ENV})`);
   });
   if (process.env.DISABLE_JOBS !== 'true') {
     startJobs();

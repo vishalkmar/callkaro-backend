@@ -1,7 +1,7 @@
 {
   "name": "callkaro-server",
   "version": "1.0.0",
-  "description": "CallKaro API - Node.js + Express + MongoDB (CommonJS)",
+  "description": "CallingKaro API - Node.js + Express + PostgreSQL (CommonJS)",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

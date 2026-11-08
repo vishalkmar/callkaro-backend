@@ -9,7 +9,7 @@ const esc = s =>
 
 const page = doc => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CallKaro - ${esc(doc.title)}</title>
+<title>CallingKaro - ${esc(doc.title)}</title>
 <style>body{font-family:system-ui,sans-serif;max-width:760px;margin:0 auto;padding:24px 16px;color:#222831;line-height:1.6}
 h1{color:#AE5330;font-size:1.6rem}h2{font-size:1.05rem;margin-top:1.6rem}.u{color:#676D7B;font-size:.9rem}</style>
 </head><body><h1>${esc(doc.title)}</h1><p class="u">${esc(doc.updated)}</p>
