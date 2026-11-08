@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const voice = require('../services/voice.service');
+const telnyx = require('../services/telnyx.service');
 const alerts = require('../services/alert.service');
 const logger = require('../utils/logger');
 
@@ -23,7 +24,21 @@ const run = async ({ olderThanMinutes = 5, limit = 200 } = {}) => {
     try {
       let dialStatus = c.status;
       let dialSeconds = c.talk_seconds || 0;
-      if (c.child_call_sid) {
+      if (c.provider === 'telnyx') {
+        // Telnyx keeps no "duration" for us to read back: a lost hangup webhook means the end time is unknown.
+        // Never guess against the user - bill what we know (or 0) and tell the admin.
+        if (c.child_call_sid && (await telnyx.isLegAlive(c.child_call_sid))) {
+          continue; // still running (long call)
+        }
+        const known = c.answered_at && c.ended_at ? Math.round((new Date(c.ended_at) - new Date(c.answered_at)) / 1000) : 0;
+        if (c.answered_at && !c.ended_at) {
+          await alerts.notify(`Telnyx call ${c.call_sid} ended without a hangup webhook - billed 0, check Telnyx CDR`, {
+            dedupeKey: `telnyx-lost-${c.call_sid}`,
+          });
+        }
+        dialStatus = c.answered_at ? 'completed' : 'no-answer';
+        dialSeconds = known;
+      } else if (c.child_call_sid) {
         // Ask the provider for the real result of the PSTN leg.
         const child = await voice.rest().calls(c.child_call_sid).fetch();
         if (['queued', 'ringing', 'in-progress'].includes(child.status)) {

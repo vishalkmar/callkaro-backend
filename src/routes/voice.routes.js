@@ -2,7 +2,8 @@ const router = require('express').Router();
 const Joi = require('joi');
 const validate = require('../middlewares/validate');
 const { requireAuth } = require('../middlewares/auth');
-const { twilioSignature } = require('../middlewares/providerSignature');
+const { twilioSignature, telnyxSignature } = require('../middlewares/providerSignature');
+const telnyx = require('../services/telnyx.service');
 const { voiceTokenLimiter } = require('../middlewares/rateLimit');
 const voice = require('../services/voice.service');
 const { ok } = require('../utils/response');
@@ -23,7 +24,7 @@ const twiml = handler => async (req, res) => {
 // ---- App (JWT) ----
 router.get('/token', requireAuth, voiceTokenLimiter, async (req, res) => ok(res, await voice.createAccessToken(req.user)));
 
-const callSidBody = validate({ body: Joi.object({ callSid: Joi.string().pattern(/^CA[a-f0-9]{32}$/).required() }) });
+const callSidBody = validate({ body: Joi.object({ callSid: Joi.string().pattern(/^(CA|TX)[a-f0-9]{32}$/).required() }) });
 router.post('/recording/start', requireAuth, callSidBody, async (req, res) =>
   ok(res, await voice.startRecording(req.user.id, req.body.callSid)),
 );
@@ -53,5 +54,15 @@ router.post(
     return '<?xml version="1.0" encoding="UTF-8"?><Response/>';
   }),
 );
+
+// ---- Telnyx (USE_TELNYX=true): Ed25519-signed JSON webhooks; always 200 so Telnyx does not retry forever ----
+router.post('/telnyx/webhook', telnyxSignature, async (req, res) => {
+  try {
+    await telnyx.handleWebhook(req.body);
+  } catch (e) {
+    logger.error({ err: e.message, event: req.body?.data?.event_type }, 'telnyx webhook error');
+  }
+  res.status(200).json({ received: true });
+});
 
 module.exports = router;

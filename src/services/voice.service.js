@@ -42,22 +42,34 @@ const getCall = callSid => queryOne('SELECT * FROM calls WHERE call_sid = $1', [
  * old placeholder) are switched off, otherwise the provider rejects them as caller ID (Twilio 13214) and calls die.
  */
 const syncCallerPool = async () => {
-  for (const e164 of env.CALLER_ID_POOL) {
-    await query(
-      "INSERT INTO caller_numbers (e164, provider, active) VALUES ($1, 'twilio', TRUE) ON CONFLICT (e164) DO UPDATE SET active = TRUE",
-      [e164],
-    );
+  // Each provider can only present its own numbers: Twilio numbers from CALLER_ID_POOL, Telnyx numbers
+  // from TELNYX_CALLER_ID_POOL.
+  for (const [provider, pool] of [
+    ['twilio', env.CALLER_ID_POOL],
+    ['telnyx', env.TELNYX_CALLER_ID_POOL],
+  ]) {
+    for (const e164 of pool) {
+      await query(
+        `INSERT INTO caller_numbers (e164, provider, active) VALUES ($1, $2, TRUE)
+         ON CONFLICT (e164) DO UPDATE SET active = TRUE, provider = EXCLUDED.provider`,
+        [e164, provider],
+      );
+    }
+    await query('UPDATE caller_numbers SET active = FALSE WHERE provider = $1 AND active = TRUE AND NOT (e164 = ANY($2::text[]))', [
+      provider,
+      pool,
+    ]);
   }
-  await query('UPDATE caller_numbers SET active = FALSE WHERE active = TRUE AND NOT (e164 = ANY($1::text[]))', [env.CALLER_ID_POOL]);
 };
 
-/** Least-recently-used active pool number. Never a random / user-supplied / spoofed number. */
-const pickCallerId = async () => {
+/** Least-recently-used active pool number of that provider. Never a random / user-supplied / spoofed number. */
+const pickCallerId = async (provider = 'twilio') => {
   const n = await queryOne(
     `UPDATE caller_numbers SET last_used_at = now()
-      WHERE e164 = (SELECT e164 FROM caller_numbers WHERE active = TRUE
+      WHERE e164 = (SELECT e164 FROM caller_numbers WHERE active = TRUE AND provider = $1
                     ORDER BY last_used_at NULLS FIRST LIMIT 1 FOR UPDATE SKIP LOCKED)
       RETURNING e164`,
+    [provider],
   );
   return n ? n.e164 : null;
 };
@@ -72,6 +84,14 @@ const createAccessToken = async user => {
   const check = await abuse.checkUserCanCall(user.id);
   if (!check.ok) {
     throw errors.tooMany(check.code, check.message);
+  }
+  if (env.USE_TELNYX) {
+    // USE_TELNYX=true wins: every new call goes through Telnyx. Required lazily (telnyx.service uses this file).
+    // eslint-disable-next-line global-require
+    return require('./telnyx.service').createAccessToken(user, {
+      credits: wallet.credits,
+      maxSeconds: maxSecondsForCredits(wallet.credits),
+    });
   }
   if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_API_KEY_SID || !env.TWILIO_API_KEY_SECRET || !env.TWILIO_TWIML_APP_SID) {
     throw errors.unavailable('VOICE_NOT_CONFIGURED', 'Calling is not configured yet');
@@ -88,7 +108,14 @@ const createAccessToken = async user => {
       ...(env.TWILIO_PUSH_CREDENTIAL_SID ? { pushCredentialSid: env.TWILIO_PUSH_CREDENTIAL_SID } : {}),
     }),
   );
-  return { token: token.toJwt(), identity: user.id, ttl, credits: wallet.credits, maxSeconds: maxSecondsForCredits(wallet.credits) };
+  return {
+    provider: 'twilio',
+    token: token.toJwt(),
+    identity: user.id,
+    ttl,
+    credits: wallet.credits,
+    maxSeconds: maxSecondsForCredits(wallet.credits),
+  };
 };
 
 // ---------------- TwiML ----------------
@@ -107,8 +134,9 @@ const identityFrom = from => String(from || '').replace(/^client:/, '');
 const insertCall = (fields, extra = {}) => {
   const f = { ...fields, ...extra };
   return query(
-    `INSERT INTO calls (user_id, call_sid, to_number, status, caller_id, max_seconds, recording_status, billed, end_reason, ended_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (call_sid) DO NOTHING`,
+    `INSERT INTO calls (user_id, call_sid, to_number, status, caller_id, max_seconds, recording_status, billed, end_reason, ended_at,
+                        provider, provider_leg_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT (call_sid) DO NOTHING`,
     [
       f.userId,
       f.callSid,
@@ -120,58 +148,62 @@ const insertCall = (fields, extra = {}) => {
       !!f.billed,
       f.endReason || null,
       f.endedAt || null,
+      f.provider || 'twilio',
+      f.providerLegId || null,
     ],
   ).catch(e => logger.error({ err: e.message }, 'call insert failed'));
 };
 
 /**
- * POST /voice/outbound (TwiML App Voice URL). Decides IF the call may happen, HOW LONG and FROM WHICH caller ID.
+ * Decides IF a call may happen, HOW LONG and FROM WHICH caller ID - the same rules for every provider:
+ * active user, callable number, balance, caller ID, one call at a time, abuse limits. Stores the call row
+ * (the insert is NOT best-effort: without a row the call could never be billed).
+ * Returns { ok: true, callerId, maxSeconds, to } or { ok: false, message } (row already stored as refused).
  */
-const handleOutbound = async body => {
-  const userId = identityFrom(body.From || body.Caller);
-  const callSid = body.CallSid;
-  const record = body.Record === 'true' || body.record === 'true';
-  const v = validateCallable(body.To);
-  const base = { userId, callSid, to: v.e164 || String(body.To || '').slice(0, 20) };
-  const refused = (status, endReason) => insertCall({ ...base, status }, { billed: true, endReason, endedAt: new Date() });
+const admitCall = async ({ userId, callSid, to, record = false, provider = 'twilio', providerLegId = null }) => {
+  const v = validateCallable(to);
+  const base = { userId, callSid, to: v.e164 || String(to || '').slice(0, 20) };
+  const refused = (status, endReason) =>
+    insertCall({ ...base, status }, { billed: true, endReason, endedAt: new Date(), provider, providerLegId });
 
   if (!UUID_RE.test(userId) || !(await queryOne("SELECT 1 FROM users WHERE id = $1 AND status = 'active'", [userId]))) {
-    return sayAndHangup('Sorry, this call could not be placed.');
+    return { ok: false, message: 'Sorry, this call could not be placed.' };
   }
   if (!v.ok) {
     await refused('blocked', `invalid_number:${v.reason}`);
-    return sayAndHangup(
-      v.reason === 'emergency'
-        ? 'Emergency and short code numbers cannot be called from this app. Please use your phone dialer.'
-        : 'The number you dialled is not valid. Please check and try again.',
-    );
+    return {
+      ok: false,
+      message:
+        v.reason === 'emergency'
+          ? 'Emergency and short code numbers cannot be called from this app. Please use your phone dialer.'
+          : 'The number you dialled is not valid. Please check and try again.',
+    };
   }
   const wallet = await walletService.getWallet(userId);
-  const maxSeconds = Math.min(maxSecondsForCredits(wallet.credits), 14400); // Twilio caps timeLimit at 4h
+  const maxSeconds = Math.min(maxSecondsForCredits(wallet.credits), 14400); // both providers cap a leg at 4h
   if (maxSeconds < 60) {
     await refused('insufficient-credit', 'insufficient_balance');
-    return sayAndHangup('Your balance is too low to make this call. Please add minutes in the app.');
+    return { ok: false, message: 'Your balance is too low to make this call. Please add minutes in the app.' };
   }
-  const callerId = await pickCallerId();
+  const callerId = await pickCallerId(provider);
   if (!callerId) {
-    logger.error('no caller id configured');
+    logger.error({ provider }, 'no caller id configured');
     await refused('failed', 'no_caller_id');
-    return sayAndHangup('Calling is temporarily unavailable. Please try again later.');
+    return { ok: false, message: 'Calling is temporarily unavailable. Please try again later.' };
   }
 
   // Limits check + call row insert under a per-user lock: two devices dialling at the same moment
   // cannot both pass the "1 active call" rule and each get the full balance as talk time.
-  // The insert is NOT best-effort: without a call row the call could never be billed.
   let refusal = null;
   let dialWith = { callerId, maxSeconds };
   try {
     await tx(async c => {
       await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', [userId]);
-      // Twilio may retry this webhook for the same CallSid: answer with the same Dial again.
+      // Providers may retry the webhook for the same call: answer with the same dial again.
       const [same] = await c.q('SELECT * FROM calls WHERE call_sid = $1', [callSid]);
       if (same) {
         if (same.user_id === userId && same.status === 'initiated' && !same.billed) {
-          dialWith = { callerId: same.caller_id, maxSeconds: same.max_seconds };
+          dialWith = { callerId: same.caller_id, maxSeconds: same.max_seconds, retry: true };
         } else {
           refusal = { code: 'DUPLICATE_CALL_SID' };
         }
@@ -187,19 +219,35 @@ const handleOutbound = async body => {
         return;
       }
       await c.q(
-        `INSERT INTO calls (user_id, call_sid, to_number, status, caller_id, max_seconds, recording_status)
-         VALUES ($1, $2, $3, 'initiated', $4, $5, $6)`,
-        [userId, callSid, v.e164, callerId, maxSeconds, record ? 'armed' : null],
+        `INSERT INTO calls (user_id, call_sid, to_number, status, caller_id, max_seconds, recording_status, provider, provider_leg_id)
+         VALUES ($1, $2, $3, 'initiated', $4, $5, $6, $7, $8)`,
+        [userId, callSid, v.e164, callerId, maxSeconds, record ? 'armed' : null, provider, providerLegId],
       );
     });
   } catch (e) {
     logger.error({ err: e.message, callSid }, 'could not store call - not dialling');
-    return sayAndHangup('Calling is temporarily unavailable. Please try again later.');
+    return { ok: false, message: 'Calling is temporarily unavailable. Please try again later.' };
   }
   if (refusal) {
-    await refused('blocked', refusal.code);
-    return sayAndHangup('This call cannot be placed right now. Please try again later.');
+    if (refusal.code !== 'DUPLICATE_CALL_SID') {
+      await refused('blocked', refusal.code);
+    }
+    return { ok: false, message: 'This call cannot be placed right now. Please try again later.' };
   }
+  return { ok: true, to: v.e164, ...dialWith };
+};
+
+/**
+ * POST /voice/outbound (TwiML App Voice URL). Decides IF the call may happen, HOW LONG and FROM WHICH caller ID.
+ */
+const handleOutbound = async body => {
+  const userId = identityFrom(body.From || body.Caller);
+  const record = body.Record === 'true' || body.record === 'true';
+  const dialWith = await admitCall({ userId, callSid: body.CallSid, to: body.To, record });
+  if (!dialWith.ok) {
+    return sayAndHangup(dialWith.message);
+  }
+  const v = { e164: dialWith.to };
 
   const vr = new twilio.twiml.VoiceResponse();
   const dial = vr.dial({
@@ -383,6 +431,13 @@ const findOwnCall = async (userId, callSid) => {
   return call;
 };
 
+/** Recording is built on Twilio's recording API; Telnyx calls say so instead of failing half-way. */
+const assertRecordable = call => {
+  if (call.provider === 'telnyx') {
+    throw errors.badRequest('RECORDING_UNAVAILABLE', 'Recording is not available on this calling line yet.');
+  }
+};
+
 const setRecordingStatus = (id, status) =>
   query('UPDATE calls SET recording_status = $2, updated_at = now() WHERE id = $1', [id, status]);
 
@@ -393,6 +448,7 @@ const setRecordingStatus = (id, status) =>
  */
 const startRecording = async (userId, callSid) => {
   const call = await findOwnCall(userId, callSid);
+  assertRecordable(call);
   if (TERMINAL.includes(call.status)) {
     throw errors.conflict('CALL_ENDED', 'The call has already ended');
   }
@@ -416,6 +472,7 @@ const startRecording = async (userId, callSid) => {
 
 const stopRecording = async (userId, callSid) => {
   const call = await findOwnCall(userId, callSid);
+  assertRecordable(call);
   let next = call.recording_status;
   if (call.recording_status === 'armed') {
     next = null;
@@ -473,6 +530,7 @@ const streamRecording = async (token, res) => {
 };
 
 module.exports = {
+  admitCall,
   syncCallerPool,
   pickCallerId,
   createAccessToken,

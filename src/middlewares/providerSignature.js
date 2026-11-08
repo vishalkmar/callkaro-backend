@@ -22,4 +22,23 @@ const twilioSignature = (req, res, next) => {
   return next();
 };
 
-module.exports = { twilioSignature };
+/** Telnyx webhooks: Ed25519 signature of "timestamp|raw body" with TELNYX_PUBLIC_KEY, 5-minute replay window. */
+const telnyxSignature = (req, res, next) => {
+  if (env.SKIP_WEBHOOK_SIGNATURE) {
+    return next(); // local testing only, never allowed in production (see env.js)
+  }
+  // eslint-disable-next-line global-require
+  const { verifySignature } = require('../services/telnyx.service');
+  const valid = verifySignature({
+    rawBody: req.rawBody,
+    signature: req.headers['telnyx-signature-ed25519'],
+    timestamp: req.headers['telnyx-timestamp'],
+  });
+  if (!valid) {
+    logger.warn('invalid telnyx signature');
+    return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'Invalid signature' });
+  }
+  return next();
+};
+
+module.exports = { twilioSignature, telnyxSignature };

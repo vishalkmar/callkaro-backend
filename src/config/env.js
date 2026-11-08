@@ -23,6 +23,10 @@ const TWILIO_KEYS = [
   'CALLER_ID_POOL',
 ];
 
+// Second provider. USE_TELNYX=true makes Telnyx carry ALL new calls (Twilio settings are then ignored);
+// false / missing = Twilio. Switching needs only an env change + restart - the app follows the server.
+const TELNYX_KEYS = ['TELNYX_API_KEY', 'TELNYX_CONNECTION_ID', 'TELNYX_CALL_CONTROL_APP_ID', 'TELNYX_CALLER_ID_POOL'];
+
 const int = (key, def) => {
   const v = parseInt(process.env[key], 10);
   return Number.isFinite(v) ? v : def;
@@ -63,10 +67,16 @@ const publicBaseUrl = () => {
 /** Checks the environment at boot and lists EVERY problem at once. Reads NODE_ENV at call time (testable). */
 const validate = () => {
   const prod = (process.env.NODE_ENV || 'development') === 'production';
+  const useTelnyx = process.env.USE_TELNYX === 'true';
   const twilioStarted = TWILIO_KEYS.some(k => process.env[k]);
-  const required = prod
-    ? [...REQUIRED_ALWAYS, ...(twilioStarted ? TWILIO_KEYS : [])]
-    : REQUIRED_ALWAYS;
+  const required = [
+    ...REQUIRED_ALWAYS,
+    // Telnyx on: its keys are needed in every environment (otherwise no call can work).
+    ...(useTelnyx ? TELNYX_KEYS : []),
+    ...(useTelnyx && prod ? ['TELNYX_PUBLIC_KEY'] : []),
+    // Twilio is only checked while it is the active provider.
+    ...(prod && !useTelnyx && twilioStarted ? TWILIO_KEYS : []),
+  ];
   const problems = required.filter(k => !process.env[k]).map(k => `${k} is missing`);
   if (prod) {
     for (const k of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET']) {
@@ -84,9 +94,14 @@ const validate = () => {
       problems.push('PUBLIC_BASE_URL must be the https:// address of this API (e.g. https://your-app.onrender.com)');
     }
   }
-  const badCallerIds = list('CALLER_ID_POOL').filter(n => !/^\+[1-9]\d{7,14}$/.test(n));
-  if (badCallerIds.length) {
-    problems.push(`CALLER_ID_POOL must be real E.164 numbers like +19105551234 (bad: ${badCallerIds.join(', ')})`);
+  for (const key of ['CALLER_ID_POOL', 'TELNYX_CALLER_ID_POOL']) {
+    const bad = list(key).filter(n => !/^\+[1-9]\d{7,14}$/.test(n));
+    if (bad.length) {
+      problems.push(`${key} must be real E.164 numbers like +19105551234 (bad: ${bad.join(', ')})`);
+    }
+  }
+  if (process.env.USE_TELNYX && !['true', 'false'].includes(process.env.USE_TELNYX)) {
+    problems.push(`USE_TELNYX must be true or false (now "${process.env.USE_TELNYX}")`);
   }
   const demoEmail = clean('DEMO_LOGIN_EMAIL');
   const demoOtp = clean('DEMO_LOGIN_OTP');
@@ -145,6 +160,17 @@ const env = {
   TWILIO_TWIML_APP_SID: process.env.TWILIO_TWIML_APP_SID,
   TWILIO_PUSH_CREDENTIAL_SID: process.env.TWILIO_PUSH_CREDENTIAL_SID,
   CALLER_ID_POOL: list('CALLER_ID_POOL'),
+
+  USE_TELNYX: process.env.USE_TELNYX === 'true',
+  TELNYX_API_KEY: process.env.TELNYX_API_KEY,
+  // Base64 Ed25519 key from Mission Control > Keys & Credentials > Public Key (webhook signatures).
+  TELNYX_PUBLIC_KEY: process.env.TELNYX_PUBLIC_KEY,
+  // Credential Connection the app's WebRTC client logs in to (webhooks -> /voice/telnyx/webhook, call parking on).
+  TELNYX_CONNECTION_ID: process.env.TELNYX_CONNECTION_ID,
+  // Voice API (Call Control) Application used to dial the PSTN number (outbound voice profile with India allowed).
+  TELNYX_CALL_CONTROL_APP_ID: process.env.TELNYX_CALL_CONTROL_APP_ID,
+  TELNYX_CALLER_ID_POOL: list('TELNYX_CALLER_ID_POOL'),
+  TELNYX_API_BASE: process.env.TELNYX_API_BASE || 'https://api.telnyx.com/v2',
   SKIP_WEBHOOK_SIGNATURE: process.env.SKIP_WEBHOOK_SIGNATURE === 'true' && NODE_ENV !== 'production',
   REPORT_URL: process.env.REPORT_URL || 'yourapp.in/report',
   RECORDING_RETENTION_DAYS: int('RECORDING_RETENTION_DAYS', 7),
