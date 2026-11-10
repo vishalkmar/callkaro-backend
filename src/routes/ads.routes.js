@@ -35,8 +35,13 @@ router.post(
   '/session',
   adsLimiter,
   requireTrustedDeviceForRewards,
-  validate({ body: Joi.object({ purpose: Joi.string().valid('credits', 'extra_spin').default('credits') }) }),
-  async (req, res) => ok(res, await adsService.createSession(req.user.id, req.body.purpose)),
+  validate({
+    body: Joi.object({
+      purpose: Joi.string().valid('credits', 'extra_spin', 'spin_claim').default('credits'),
+      refId: Joi.string().guid().when('purpose', { is: 'spin_claim', then: Joi.required(), otherwise: Joi.forbidden() }),
+    }),
+  }),
+  async (req, res) => ok(res, await adsService.createSession(req.user.id, req.body.purpose, req.body.refId)),
 );
 
 module.exports = router;

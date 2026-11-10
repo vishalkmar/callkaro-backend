@@ -27,7 +27,7 @@ const adStatus = async userId => {
 };
 
 /** POST /ads/session - issues a nonce that AdMob returns in SSV custom_data ("<userId>:<nonce>"). */
-const createSession = async (userId, purpose = 'credits') => {
+const createSession = async (userId, purpose = 'credits', refId = null) => {
   const user = await queryOne('SELECT rewards_disabled FROM users WHERE id = $1', [userId]);
   if (user?.rewards_disabled) {
     throw errors.forbidden('REWARDS_DISABLED', 'Free rewards are not available on this device');
@@ -45,12 +45,21 @@ const createSession = async (userId, purpose = 'credits') => {
       throw errors.tooMany('SPIN_DAILY_CAP', 'No more extra spins today');
     }
   }
+  if (purpose === 'spin_claim') {
+    const spin = await queryOne(
+      `SELECT 1 FROM spins WHERE id = $1 AND user_id = $2 AND claimed = FALSE
+          AND created_at > now() - ($3 || ' hours')::interval`,
+      [refId, userId, String(economy.SPIN_CLAIM_HOURS)],
+    );
+    if (!spin) {
+      throw errors.conflict('SPIN_NOT_CLAIMABLE', 'This prize was already collected or has expired');
+    }
+  }
   const nonce = crypto.randomBytes(16).toString('hex');
-  await query("INSERT INTO ad_sessions (user_id, nonce, purpose, expires_at) VALUES ($1, $2, $3, now() + interval '30 minutes')", [
-    userId,
-    nonce,
-    purpose,
-  ]);
+  await query(
+    "INSERT INTO ad_sessions (user_id, nonce, purpose, ref_id, expires_at) VALUES ($1, $2, $3, $4, now() + interval '30 minutes')",
+    [userId, nonce, purpose, purpose === 'spin_claim' ? refId : null],
+  );
   return { nonce, customData: `${userId}:${nonce}`, ...st };
 };
 
@@ -79,6 +88,26 @@ const applySsvReward = async params => {
   const user = await queryOne('SELECT status, rewards_disabled FROM users WHERE id = $1', [userId]);
   if (!user || user.status !== 'active' || user.rewards_disabled) {
     return { rewarded: false, reason: 'user_not_eligible' };
+  }
+
+  // A won spin: the watched ad pays out exactly that spin's prize (no daily ad cap / gap - spins are limited).
+  if (session.purpose === 'spin_claim') {
+    const inserted = await queryOne(
+      `INSERT INTO ad_rewards (user_id, transaction_id, nonce, purpose, credits, ad_unit) VALUES ($1, $2, $3, 'spin_claim', 0, $4)
+       ON CONFLICT (transaction_id) DO NOTHING RETURNING id`,
+      [userId, transactionId, nonce, params.ad_unit || null],
+    );
+    if (!inserted) {
+      return { rewarded: false, reason: 'duplicate' };
+    }
+    // eslint-disable-next-line global-require
+    const r = await require('./spin.service').creditSpin(userId, session.ref_id);
+    if (!r) {
+      return { rewarded: false, reason: 'spin_not_claimable' };
+    }
+    await query('UPDATE ad_rewards SET credits = $2 WHERE id = $1', [inserted.id, r.credits]);
+    logger.info({ userId, credits: r.credits }, 'spin prize credited after ad');
+    return { rewarded: true, balance: r.balance, purpose: session.purpose };
   }
 
   // Cap + minimum gap (server-enforced; the app's counter is display only).

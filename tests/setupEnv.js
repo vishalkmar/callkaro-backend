@@ -20,3 +20,4 @@ process.env.RAZORPAY_KEY_SECRET = 'rzp_secret';
 process.env.RAZORPAY_WEBHOOK_SECRET = 'rzp_webhook_secret';
 process.env.PLAY_RTDN_TOKEN = 'rtdn-token';
 process.env.ACCOUNTS_PER_DEVICE = '2';
+process.env.SPIN_NEEDS_AD = 'false'; // older spin tests: instant credits (spinClaim.test.js turns the ad step on)

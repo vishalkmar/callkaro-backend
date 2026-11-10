@@ -114,6 +114,10 @@ const economy = {
   MIN_SECONDS_BETWEEN_AD_REWARDS: int('MIN_SECONDS_BETWEEN_AD_REWARDS', 30),
   FREE_SPIN_INTERVAL_HOURS: int('FREE_SPIN_INTERVAL_HOURS', 24),
   MAX_EXTRA_SPINS_PER_DAY: int('MAX_EXTRA_SPINS_PER_DAY', 5),
+  // Spin prizes are collected by watching a rewarded ad (credits only after the ad). SPIN_NEEDS_AD=false = instant.
+  SPIN_NEEDS_AD: process.env.SPIN_NEEDS_AD !== 'false',
+  // How long a won-but-not-collected spin can still be collected.
+  SPIN_CLAIM_HOURS: int('SPIN_CLAIM_HOURS', 24),
   DAILY_CHECKIN_CREDITS: int('DAILY_CHECKIN_CREDITS', 100),
   REFERRAL_BONUS_CREDITS: int('REFERRAL_BONUS_CREDITS', 5000),
   // Abuse limits
