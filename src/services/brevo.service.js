@@ -41,7 +41,11 @@ const sendOtpEmail = async ({ to, code }) => {
     });
   } catch (e) {
     // Log the failure (status + Brevo error code) but never the code itself.
-    logger.error({ status: e.response?.status, brevo: e.response?.data?.code, msg: e.message }, 'Brevo send failed');
+    // Brevo's own message tells a wrong key, an unauthorised IP and an unverified sender apart (no secrets in it).
+    logger.error(
+      { status: e.response?.status, brevo: e.response?.data?.code, brevoMessage: e.response?.data?.message, msg: e.message },
+      'Brevo send failed',
+    );
     throw errors.unavailable('EMAIL_SEND_FAILED', 'Could not send code, try again');
   }
 };
