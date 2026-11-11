@@ -1,0 +1,21 @@
+{
+  "name": "callingkaro-admin-ui",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CallingKaro admin panel (built into ../public/admin-panel, served by the API at /admin-panel)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "recharts": "2.13.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "vite": "5.4.11"
+  }
+}

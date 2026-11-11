@@ -8,6 +8,8 @@ COPY src ./src
 COPY scripts ./scripts
 # SQL migrations run at boot (tables are created on the first start)
 COPY migrations ./migrations
+# Admin panel web app (prebuilt from admin-ui/)
+COPY public ./public
 USER node
 EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://127.0.0.1:5000/health || exit 1

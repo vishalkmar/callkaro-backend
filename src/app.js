@@ -77,6 +77,12 @@ app.use('/voice', require('./routes/voice.routes'));
 app.use('/', require('./routes/calls.routes'));
 app.use('/', require('./routes/report.routes'));
 app.use('/admin', require('./routes/admin.routes'));
+app.use('/admin-api', require('./routes/adminPanel.routes'));
+// Admin panel web app (built from admin-ui/ into public/admin-panel). Any deep link -> index.html.
+const panelDir = require('path').join(__dirname, '..', 'public', 'admin-panel');
+app.use('/admin-panel', express.static(panelDir, { index: 'index.html', maxAge: '1h' }), (req, res, next) =>
+  req.method === 'GET' ? res.sendFile(require('path').join(panelDir, 'index.html'), err => err && next()) : next(),
+);
 
 app.use(notFound);
 app.use(errorHandler);

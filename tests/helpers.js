@@ -3,6 +3,10 @@
 const { connectDB, disconnectDB, query, queryOne, getPool } = require('../src/config/db');
 
 const TABLES = [
+  'admin_audit',
+  'admin_sessions',
+  'admin_challenges',
+  'admins',
   'spins',
   'ad_rewards',
   'ad_sessions',

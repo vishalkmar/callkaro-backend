@@ -103,6 +103,16 @@ const validate = () => {
   if (process.env.USE_TELNYX && !['true', 'false'].includes(process.env.USE_TELNYX)) {
     problems.push(`USE_TELNYX must be true or false (now "${process.env.USE_TELNYX}")`);
   }
+  if (process.env.ADMIN_USERNAME) {
+    if (!process.env.ADMIN_PASSWORD) {
+      problems.push('ADMIN_PASSWORD is missing (needed with ADMIN_USERNAME)');
+    } else if (prod && process.env.ADMIN_PASSWORD.length < 12) {
+      problems.push('ADMIN_PASSWORD must be at least 12 characters in production');
+    }
+    if (!String(process.env.ADMIN_2FA_EMAIL || '').includes('@')) {
+      problems.push('ADMIN_2FA_EMAIL is missing (admin login codes are emailed there)');
+    }
+  }
   const demoEmail = clean('DEMO_LOGIN_EMAIL');
   const demoOtp = clean('DEMO_LOGIN_OTP');
   if (demoEmail || demoOtp) {
@@ -191,6 +201,10 @@ const env = {
     .filter(Boolean),
   ADMOB_SSV_KEYS_URL: process.env.ADMOB_SSV_KEYS_URL || 'https://www.gstatic.com/admob/reward/verifier-keys.json',
   ADMIN_API_KEY: process.env.ADMIN_API_KEY,
+  // Admin panel: the first admin is created from these once (password changes happen in the panel).
+  ADMIN_USERNAME: process.env.ADMIN_USERNAME,
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+  ADMIN_2FA_EMAIL: (process.env.ADMIN_2FA_EMAIL || '').trim(), // login codes go here (email 2FA)
   ADMIN_IP_ALLOWLIST: list('ADMIN_IP_ALLOWLIST'),
   ALERT_WEBHOOK_URL: process.env.ALERT_WEBHOOK_URL,
   DAILY_TELEPHONY_SPEND_ALERT_INR: int('DAILY_TELEPHONY_SPEND_ALERT_INR', 2000),

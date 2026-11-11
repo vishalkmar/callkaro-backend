@@ -50,4 +50,25 @@ const sendOtpEmail = async ({ to, code }) => {
   }
 };
 
-module.exports = { sendOtpEmail, otpEmailHtml };
+/** Admin panel login code (second factor). Same delivery as user OTPs, its own subject. */
+const sendAdminCodeEmail = async ({ to, code }) => {
+  try {
+    await axios.post(
+      BREVO_URL,
+      {
+        sender: { email: env.BREVO_SENDER_EMAIL, name: env.BREVO_SENDER_NAME },
+        to: [{ email: to }],
+        subject: `${code} - ${env.BREVO_SENDER_NAME} admin login code`,
+        htmlContent: otpEmailHtml({ appName: `${env.BREVO_SENDER_NAME} Admin`, code, minutes: 5 }),
+        textContent: `Your ${env.BREVO_SENDER_NAME} admin login code is ${code}. Valid for 5 minutes. If this was not you, change the admin password now.`,
+        tags: ['admin-2fa'],
+      },
+      { headers: { 'api-key': env.BREVO_API_KEY, 'content-type': 'application/json', accept: 'application/json' }, timeout: 10000 },
+    );
+  } catch (e) {
+    logger.error({ status: e.response?.status, brevo: e.response?.data?.code, brevoMessage: e.response?.data?.message }, 'admin code email failed');
+    throw errors.unavailable('EMAIL_SEND_FAILED', 'Could not send the login code email. Check the Brevo settings.');
+  }
+};
+
+module.exports = { sendOtpEmail, sendAdminCodeEmail, otpEmailHtml };
