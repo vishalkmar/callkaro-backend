@@ -195,7 +195,8 @@ const env = {
   ALERT_WEBHOOK_URL: process.env.ALERT_WEBHOOK_URL,
   DAILY_TELEPHONY_SPEND_ALERT_INR: int('DAILY_TELEPHONY_SPEND_ALERT_INR', 2000),
   PROVIDER_COST_PAISE_PER_MIN: int('PROVIDER_COST_PAISE_PER_MIN', 120),
-  ACCOUNTS_PER_DEVICE: int('ACCOUNTS_PER_DEVICE', 2),
+  // 0 = no limit on accounts per phone (the welcome bonus is still once per phone).
+  ACCOUNTS_PER_DEVICE: int('ACCOUNTS_PER_DEVICE', 0),
   APP_VERSION: process.env.npm_package_version || '1.0.0',
   GIT_COMMIT: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || undefined, // which deploy is running
 };

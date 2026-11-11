@@ -25,3 +25,4 @@ process.env.MAX_AD_REWARDS_PER_DAY = '20'; // older tests check the daily cap (0
 process.env.FREE_SPIN_INTERVAL_HOURS = '24';
 process.env.AD_REWARD_MIN = '250'; // older tests expect a fixed 250 per video (the random range is tested separately)
 process.env.AD_REWARD_MAX = '250';
+process.env.REPORTS_TO_AUTOBLOCK = '3'; // older tests check auto-block (0 = off is tested separately)

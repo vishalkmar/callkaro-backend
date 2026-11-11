@@ -63,6 +63,10 @@ const evaluateReports = async report => {
     logger.info({ number: report.target_number.slice(0, 5) }, 'number opted out');
     return { optedOut: true };
   }
+  // Auto-block switched off: the report stays open for the admin to review.
+  if (!(threshold > 0)) {
+    return {};
+  }
   if (report.target_user_id) {
     const { n } = await queryOne(
       "SELECT COUNT(*)::int AS n FROM reports WHERE target_user_id = $1 AND status IN ('open', 'reviewing')",

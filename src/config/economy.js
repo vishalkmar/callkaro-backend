@@ -144,7 +144,8 @@ const economy = {
   MAX_CALLS_PER_HOUR: int('MAX_CALLS_PER_HOUR', 30),
   MAX_DISTINCT_NUMBERS_PER_DAY: int('MAX_DISTINCT_NUMBERS_PER_DAY', 50),
   MAX_CALLS_PER_NUMBER_PER_HOUR: int('MAX_CALLS_PER_NUMBER_PER_HOUR', 3),
-  REPORTS_TO_AUTOBLOCK: int('REPORTS_TO_AUTOBLOCK', 3),
+  // 0 = off: reports are kept for the admin, nobody is blocked automatically (opt-outs are always honoured).
+  REPORTS_TO_AUTOBLOCK: int('REPORTS_TO_AUTOBLOCK', 0),
   RING_TIMEOUT_SECONDS: int('RING_TIMEOUT_SECONDS', 45),
   packages: parsePackages().map(p => ({
     ...p,

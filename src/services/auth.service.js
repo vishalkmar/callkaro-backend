@@ -85,7 +85,7 @@ const upsertUser = async ({ email, deviceId, termsVersion, referralCode }) => {
   if (!user) {
     // Device binding: limit accounts per device (stops welcome-bonus farming).
     const { n } = await queryOne("SELECT COUNT(*)::int AS n FROM users WHERE $1 = ANY(device_ids) AND status <> 'deleted'", [deviceId]);
-    if (n >= env.ACCOUNTS_PER_DEVICE) {
+    if (env.ACCOUNTS_PER_DEVICE > 0 && n >= env.ACCOUNTS_PER_DEVICE) {
       throw errors.forbidden('DEVICE_LIMIT', 'Too many accounts on this device. Login with your existing email.');
     }
     // Welcome bonus once per account AND once per device (ever, including deleted accounts).

@@ -237,3 +237,52 @@ describe('rewarded video pays a random 10-50, mostly low', () => {
     }
   });
 });
+
+describe('switched off: auto-block after reports, accounts-per-phone limit', () => {
+  const { env: envCfg } = require('../src/config/env');
+  test('REPORTS_TO_AUTOBLOCK=0: many reports block nobody, but a "do not call me" opt-out still does', async () => {
+    const saved = economy.REPORTS_TO_AUTOBLOCK;
+    economy.REPORTS_TO_AUTOBLOCK = 0;
+    try {
+      const abuse = require('../src/services/abuse.service');
+      const target = await createUser();
+      for (let i = 0; i < 5; i++) {
+        const r = await queryOne(
+          "INSERT INTO reports (target_user_id, target_number, reason, details) VALUES ($1, '+919800000001', 'harassment', 'x') RETURNING *",
+          [target.user.id],
+        );
+        await abuse.evaluateReports(r);
+      }
+      expect((await queryOne('SELECT status FROM users WHERE id = $1', [target.user.id])).status).toBe('active');
+      const opt = await queryOne(
+        "INSERT INTO reports (target_number, reporter_contact, reason, details) VALUES ('+919800000002', '+919800000002', 'opt_out', 'IVR') RETURNING *",
+      );
+      expect(await abuse.evaluateReports(opt)).toMatchObject({ optedOut: true });
+      expect(await queryOne("SELECT 1 FROM blocked_numbers WHERE e164 = '+919800000002'")).toBeTruthy();
+    } finally {
+      economy.REPORTS_TO_AUTOBLOCK = saved;
+    }
+  });
+
+  test('ACCOUNTS_PER_DEVICE=0: any number of accounts on one phone, welcome bonus still only once', async () => {
+    const saved = envCfg.ACCOUNTS_PER_DEVICE;
+    envCfg.ACCOUNTS_PER_DEVICE = 0;
+    try {
+      const auth = require('../src/services/auth.service');
+      const bcrypt = require('bcryptjs');
+      const bonuses = [];
+      for (let i = 0; i < 4; i++) {
+        const email = `phone${i}@example.com`;
+        await query(
+          "INSERT INTO otps (email, otp_hash, expires_at, attempts, send_times, purge_at) VALUES ($1, $2, now() + interval '5 minutes', 0, '{}', now() + interval '1 hour')",
+          [email, await bcrypt.hash('123456', 4)],
+        );
+        const r = await auth.verifyOtp({ email, otp: '123456', deviceId: 'same-phone' });
+        bonuses.push(Number(r.wallet.credits));
+      }
+      expect(bonuses.filter(c => c > 0)).toHaveLength(1); // 4 accounts, one welcome bonus
+    } finally {
+      envCfg.ACCOUNTS_PER_DEVICE = saved;
+    }
+  });
+});
