@@ -194,3 +194,46 @@ describe('unlimited ads and spins (0 = no limit)', () => {
     expect(await credits(user.id)).toBe(r.credits + 250);
   });
 });
+
+describe('rewarded video pays a random 10-50, mostly low', () => {
+  test('always within the range, skewed to the low end', () => {
+    const counts = { low: 0, high: 0 };
+    let sum = 0;
+    for (let i = 0; i < 20000; i++) {
+      const v = economy.pickAdReward(10, 50);
+      expect(v).toBeGreaterThanOrEqual(10);
+      expect(v).toBeLessThanOrEqual(50);
+      sum += v;
+      if (v <= 20) counts.low += 1;
+      if (v > 40) counts.high += 1;
+    }
+    expect(counts.low / 20000).toBeGreaterThan(0.45); // about half pay 10-20
+    expect(counts.high / 20000).toBeLessThan(0.18); // big ones are rare
+    expect(sum / 20000).toBeLessThan(27);
+  });
+
+  test('edges: smallest and largest random numbers map to min and max; a fixed range pays that amount', () => {
+    expect(economy.pickAdReward(10, 50, () => 0)).toBe(10);
+    expect(economy.pickAdReward(10, 50, () => 999999)).toBe(50);
+    expect(economy.pickAdReward(250, 250)).toBe(250);
+  });
+
+  test('the SSV callback credits a random amount in the range (reward_amount from Google is ignored)', async () => {
+    const saved = [economy.AD_REWARD_MIN, economy.AD_REWARD_MAX];
+    economy.AD_REWARD_MIN = 10;
+    economy.AD_REWARD_MAX = 50;
+    try {
+      realAds();
+      const { user, token } = await createUser({ credits: 0 });
+      const st = (await request(app).get('/ads/status').set(auth(token))).body.data;
+      expect(st).toMatchObject({ rewardMin: 10, rewardMax: 50 });
+      const s = (await session(token, { purpose: 'credits' })).body.data;
+      await ssv(s.customData, 'video-random');
+      const got = await credits(user.id);
+      expect(got).toBeGreaterThanOrEqual(10);
+      expect(got).toBeLessThanOrEqual(50);
+    } finally {
+      [economy.AD_REWARD_MIN, economy.AD_REWARD_MAX] = saved;
+    }
+  });
+});

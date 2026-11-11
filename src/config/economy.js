@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 // Every economy number lives here (overridable from .env) so prices change without an app update.
 const int = (key, def) => {
   const v = parseInt(process.env[key], 10);
@@ -105,11 +106,27 @@ const spinOdds = segments => {
     .map(([credits, w]) => ({ credits, percent: Math.round((w / total) * 1000) / 10 }));
 };
 
+/**
+ * Credits for one watched video, decided by the SERVER (never the app): min..max, skewed low. A uniform
+ * r in [0,1) is squared, so small amounts are common and big ones rare. 10..50 -> about half the videos pay
+ * 10-20, ~13 % pay 41-50, average ~24.
+ */
+const pickAdReward = (min, max, randomInt = crypto.randomInt) => {
+  if (!(max > min)) {
+    return Math.max(0, min);
+  }
+  const r = randomInt(0, 1000000) / 1000000;
+  return Math.min(max, min + Math.floor((max - min + 1) * r * r));
+};
+
 const economy = {
   CREDITS_PER_MINUTE,
   MIN_CREDITS_TO_CALL: int('MIN_CREDITS_TO_CALL', 1000),
   WELCOME_BONUS_CREDITS: int('WELCOME_BONUS_CREDITS', 2000),
-  AD_REWARD_CREDITS: int('AD_REWARD_CREDITS', 250),
+  // Each rewarded video pays a random amount between these (mostly the low end - see pickAdReward).
+  AD_REWARD_MIN: int('AD_REWARD_MIN', 10),
+  AD_REWARD_MAX: int('AD_REWARD_MAX', 50),
+  pickAdReward,
   // 0 = no daily limit (users may watch as many rewarded videos as they like; the gap below still applies).
   MAX_AD_REWARDS_PER_DAY: int('MAX_AD_REWARDS_PER_DAY', 0),
   MIN_SECONDS_BETWEEN_AD_REWARDS: int('MIN_SECONDS_BETWEEN_AD_REWARDS', 30),

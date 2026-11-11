@@ -22,7 +22,9 @@ const adStatus = async userId => {
     todayCount: row.today,
     unlimited,
     max: unlimited ? null : economy.MAX_AD_REWARDS_PER_DAY,
-    rewardCredits: economy.AD_REWARD_CREDITS,
+    rewardMin: economy.AD_REWARD_MIN,
+    rewardMax: economy.AD_REWARD_MAX,
+    rewardCredits: economy.AD_REWARD_MAX, // older apps show one number: the most a video can pay
     remaining: unlimited ? null : Math.max(0, economy.MAX_AD_REWARDS_PER_DAY - row.today),
     nextAvailableAt: nextAt && nextAt > new Date() ? nextAt.toISOString() : null,
   };
@@ -121,7 +123,8 @@ const applySsvReward = async params => {
     return { rewarded: false, reason: 'too_soon' };
   }
 
-  const credits = session.purpose === 'credits' ? economy.AD_REWARD_CREDITS : 0; // never from the request
+  // Random amount picked here, never from the request (reward_amount in the callback is ignored).
+  const credits = session.purpose === 'credits' ? economy.pickAdReward(economy.AD_REWARD_MIN, economy.AD_REWARD_MAX) : 0;
   const inserted = await queryOne(
     `INSERT INTO ad_rewards (user_id, transaction_id, nonce, purpose, credits, ad_unit) VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (transaction_id) DO NOTHING RETURNING id`,

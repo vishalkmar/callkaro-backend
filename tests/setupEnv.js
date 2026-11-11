@@ -23,3 +23,5 @@ process.env.ACCOUNTS_PER_DEVICE = '2';
 process.env.SPIN_NEEDS_AD = 'false'; // older spin tests: instant credits (spinClaim.test.js turns the ad step on)
 process.env.MAX_AD_REWARDS_PER_DAY = '20'; // older tests check the daily cap (0 = unlimited is tested separately)
 process.env.FREE_SPIN_INTERVAL_HOURS = '24';
+process.env.AD_REWARD_MIN = '250'; // older tests expect a fixed 250 per video (the random range is tested separately)
+process.env.AD_REWARD_MAX = '250';
