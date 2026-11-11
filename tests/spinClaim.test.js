@@ -134,3 +134,63 @@ describe('spin: prize first, credits after the ad', () => {
     expect(await credits(user.id)).toBe(r.credits);
   });
 });
+
+describe('unlimited ads and spins (0 = no limit)', () => {
+  const saved = {};
+  beforeEach(() => {
+    saved.max = economy.MAX_AD_REWARDS_PER_DAY;
+    saved.interval = economy.FREE_SPIN_INTERVAL_HOURS;
+  });
+  afterEach(() => {
+    economy.MAX_AD_REWARDS_PER_DAY = saved.max;
+    economy.FREE_SPIN_INTERVAL_HOURS = saved.interval;
+  });
+
+  test('MAX_AD_REWARDS_PER_DAY=0: no daily cap - the 21st video still pays', async () => {
+    economy.MAX_AD_REWARDS_PER_DAY = 0;
+    realAds();
+    const { user, token } = await createUser({ credits: 0 });
+    for (let i = 0; i < 20; i++) {
+      await query(
+        "INSERT INTO ad_rewards (user_id, transaction_id, purpose, credits, created_at) VALUES ($1, $2, 'credits', 250, now() - interval '5 minutes')",
+        [user.id, `old-${i}`],
+      );
+    }
+    const st = (await request(app).get('/ads/status').set(auth(token))).body.data;
+    expect(st).toMatchObject({ unlimited: true, remaining: null, todayCount: 20 });
+    const s = (await session(token, { purpose: 'credits' })).body.data;
+    await ssv(s.customData, 'video-21');
+    expect(await credits(user.id)).toBe(250);
+  });
+
+  test('FREE_SPIN_INTERVAL_HOURS=0 with the ad step: spin again right away, every prize waits for its ad', async () => {
+    economy.FREE_SPIN_INTERVAL_HOURS = 0;
+    const { user, token } = await createUser({ credits: 0 });
+    const a = await play(token);
+    const b = await play(token);
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    expect(await credits(user.id)).toBe(0); // nothing without the ads
+    const st = (await request(app).get('/spin/status').set(auth(token))).body.data;
+    expect(st).toMatchObject({ freeAvailable: true, freeIntervalHours: 0 });
+  });
+
+  test('safety: interval 0 but the ad step switched off -> back to one spin per 24 h', async () => {
+    economy.FREE_SPIN_INTERVAL_HOURS = 0;
+    economy.SPIN_NEEDS_AD = false;
+    const { token } = await createUser({ credits: 0 });
+    expect((await play(token)).status).toBe(200);
+    expect((await play(token)).body.code).toBe('NO_SPINS');
+  });
+
+  test('a video right after collecting a spin is not refused by the video gap', async () => {
+    realAds();
+    const { user, token } = await createUser({ credits: 0 });
+    const r = (await play(token)).body.data;
+    const s = (await session(token, { purpose: 'spin_claim', refId: r.spinId })).body.data;
+    await ssv(s.customData, 'spin-x');
+    const v = (await session(token, { purpose: 'credits' })).body.data;
+    await ssv(v.customData, 'video-x');
+    expect(await credits(user.id)).toBe(r.credits + 250);
+  });
+});

@@ -6,7 +6,15 @@ const { env } = require('../config/env');
 const { errors } = require('../utils/response');
 const { startOfLocalDay } = require('../utils/time');
 
-const FREE_MS = () => economy.FREE_SPIN_INTERVAL_HOURS * 3600 * 1000;
+/** Hours between free spins. 0 (spin any time) only while each prize needs an ad; otherwise 24. */
+const intervalHours = () => {
+  const h = economy.FREE_SPIN_INTERVAL_HOURS;
+  if (h > 0) {
+    return h;
+  }
+  return economy.SPIN_NEEDS_AD ? 0 : 24;
+};
+const FREE_MS = () => intervalHours() * 3600 * 1000;
 
 /** Weighted pick using a CSPRNG. Weights may be decimals (scaled to integers). */
 const pickWeighted = (segments, randomInt = crypto.randomInt) => {
@@ -53,6 +61,7 @@ const status = async userId => {
       ? { spinId: pending.id, segmentIndex: pending.segment_index, credits: pending.credits, claimVia: claimVia() }
       : null,
     freeAvailable,
+    freeIntervalHours: intervalHours(), // 0 = spin as often as you like
     nextFreeAt: freeAvailable ? null : new Date(last + FREE_MS()).toISOString(),
     extraSpinsAvailable: counts.unused, // unlocked by ads, ready to use
     extraSpinsLeft: Math.max(0, economy.MAX_EXTRA_SPINS_PER_DAY - counts.unlocked), // can still be unlocked today

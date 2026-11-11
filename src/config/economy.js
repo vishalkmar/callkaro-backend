@@ -110,9 +110,12 @@ const economy = {
   MIN_CREDITS_TO_CALL: int('MIN_CREDITS_TO_CALL', 1000),
   WELCOME_BONUS_CREDITS: int('WELCOME_BONUS_CREDITS', 2000),
   AD_REWARD_CREDITS: int('AD_REWARD_CREDITS', 250),
-  MAX_AD_REWARDS_PER_DAY: int('MAX_AD_REWARDS_PER_DAY', 20),
+  // 0 = no daily limit (users may watch as many rewarded videos as they like; the gap below still applies).
+  MAX_AD_REWARDS_PER_DAY: int('MAX_AD_REWARDS_PER_DAY', 0),
   MIN_SECONDS_BETWEEN_AD_REWARDS: int('MIN_SECONDS_BETWEEN_AD_REWARDS', 30),
-  FREE_SPIN_INTERVAL_HOURS: int('FREE_SPIN_INTERVAL_HOURS', 24),
+  // 0 = spin any time (every prize is collected by watching an ad). Only allowed while SPIN_NEEDS_AD is on -
+  // otherwise unlimited spins would be unlimited free credits, so the server falls back to 24 h.
+  FREE_SPIN_INTERVAL_HOURS: int('FREE_SPIN_INTERVAL_HOURS', 0),
   MAX_EXTRA_SPINS_PER_DAY: int('MAX_EXTRA_SPINS_PER_DAY', 5),
   // Spin prizes are collected by watching a rewarded ad (credits only after the ad). SPIN_NEEDS_AD=false = instant.
   SPIN_NEEDS_AD: process.env.SPIN_NEEDS_AD !== 'false',

@@ -11,17 +11,19 @@ const logger = require('../utils/logger');
 const adStatus = async userId => {
   const row = await queryOne(
     `SELECT COUNT(*) FILTER (WHERE purpose = 'credits' AND created_at >= $2)::int AS today,
-            MAX(created_at) AS last
+            MAX(created_at) FILTER (WHERE purpose = 'credits') AS last
        FROM ad_rewards WHERE user_id = $1`,
     [userId, startOfLocalDay()],
   );
   const gapMs = economy.MIN_SECONDS_BETWEEN_AD_REWARDS * 1000;
   const nextAt = row.last ? new Date(new Date(row.last).getTime() + gapMs) : null;
+  const unlimited = economy.MAX_AD_REWARDS_PER_DAY <= 0;
   return {
     todayCount: row.today,
-    max: economy.MAX_AD_REWARDS_PER_DAY,
+    unlimited,
+    max: unlimited ? null : economy.MAX_AD_REWARDS_PER_DAY,
     rewardCredits: economy.AD_REWARD_CREDITS,
-    remaining: Math.max(0, economy.MAX_AD_REWARDS_PER_DAY - row.today),
+    remaining: unlimited ? null : Math.max(0, economy.MAX_AD_REWARDS_PER_DAY - row.today),
     nextAvailableAt: nextAt && nextAt > new Date() ? nextAt.toISOString() : null,
   };
 };
@@ -33,7 +35,7 @@ const createSession = async (userId, purpose = 'credits', refId = null) => {
     throw errors.forbidden('REWARDS_DISABLED', 'Free rewards are not available on this device');
   }
   const st = await adStatus(userId);
-  if (purpose === 'credits' && st.remaining <= 0) {
+  if (purpose === 'credits' && !st.unlimited && st.remaining <= 0) {
     throw errors.tooMany('AD_DAILY_CAP', `You reached today's limit of ${st.max} rewarded ads`, st);
   }
   if (purpose === 'extra_spin') {
@@ -112,7 +114,7 @@ const applySsvReward = async params => {
 
   // Cap + minimum gap (server-enforced; the app's counter is display only).
   const st = await adStatus(userId);
-  if (session.purpose === 'credits' && st.remaining <= 0) {
+  if (session.purpose === 'credits' && !st.unlimited && st.remaining <= 0) {
     return { rewarded: false, reason: 'daily_cap' };
   }
   if (st.nextAvailableAt) {
